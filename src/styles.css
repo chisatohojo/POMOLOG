@@ -149,16 +149,26 @@ input[type='datetime-local'] {
 .brand {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 12px;
   text-decoration: none;
-  margin: 0 -5px 58px;
+  margin: 0 0 36px;
 }
-.brand img {
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
+.brand-mark {
+  width: 50px;
+  height: 60px;
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
 }
-.brand > span {
+.brand-mark img {
+  position: absolute;
+  width: 294%;
+  height: auto;
+  max-width: none;
+  left: -101%;
+  top: -55.4%;
+}
+.brand-wordmark {
   font-size: 20px;
   letter-spacing: 1.3px;
   font-weight: 750;
@@ -256,13 +266,13 @@ main {
   max-width: 1410px;
   width: 100%;
   margin-left: 228px;
-  padding: 46px 48px 25px;
+  padding: 28px 40px 25px;
 }
 .page-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 29px;
+  margin-bottom: 22px;
 }
 .eyebrow {
   font-size: 9px;
@@ -300,7 +310,7 @@ main {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 17px;
-  margin-bottom: 25px;
+  margin: 20px 0;
 }
 .stat-card {
   background: #fff;
@@ -371,7 +381,7 @@ main {
   color: #a1a89c;
 }
 .timer-card {
-  padding: 25px 26px 23px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -406,10 +416,10 @@ main {
   color: var(--coral);
 }
 .timer-dial {
-  width: min(100%, 320px);
+  width: min(100%, 248px);
   aspect-ratio: 1;
   position: relative;
-  margin: 30px 0 20px;
+  margin: 16px 0 12px;
 }
 .timer-dial > svg {
   width: 100%;
@@ -466,7 +476,7 @@ main {
   font-size: 11px;
   color: var(--coral);
   position: absolute;
-  bottom: 58px;
+  bottom: 39px;
   font-variant-numeric: tabular-nums;
 }
 .goal-status {
@@ -484,7 +494,7 @@ main {
 .timer-controls {
   width: 100%;
   max-width: 330px;
-  margin: 26px 0 0;
+  margin: 16px 0 0;
 }
 .primary {
   background: var(--coral);
@@ -536,8 +546,8 @@ main {
   align-items: flex-start;
   gap: 8px;
   color: #9fa696;
-  padding: 20px 0 0;
-  margin-top: auto;
+  padding: 0;
+  margin-top: 12px;
   font-size: 9px;
   line-height: 1.9;
 }
@@ -884,25 +894,25 @@ main {
     padding-left: 14px;
     padding-right: 14px;
   }
-  .brand > span {
+  .brand-wordmark {
     font-size: 17px;
   }
-  .brand img {
-    width: 48px;
-    height: 48px;
+  .brand-mark {
+    width: 42px;
+    height: 50px;
   }
   .brand small {
     font-size: 8px;
   }
   main {
     margin-left: 194px;
-    padding: 35px 28px 24px;
+    padding: 26px 28px 24px;
   }
   .workspace {
     gap: 16px;
   }
   .timer-card {
-    padding: 22px 18px;
+    padding: 20px 18px;
   }
   .study-card,
   .problem-card,
@@ -922,7 +932,7 @@ main {
     font-size: 9px;
   }
   .timer-dial {
-    margin-top: 38px;
+    margin-top: 16px;
   }
   .stat-card {
     padding: 17px 18px;
@@ -945,8 +955,8 @@ main {
     margin-right: auto;
     gap: 5px;
   }
-  .brand img {
-    width: 43px;
+  .brand-mark {
+    width: 36px;
     height: 43px;
   }
   .brand small {
@@ -980,8 +990,8 @@ main {
     max-width: 900px;
   }
   .timer-dial {
-    max-width: 300px;
-    margin-top: 24px;
+    max-width: 248px;
+    margin-top: 16px;
   }
   .timer-note {
     font-size: 9px;
@@ -998,11 +1008,11 @@ main {
     padding: 10px 15px;
     gap: 8px;
   }
-  .brand > span {
+  .brand-wordmark {
     font-size: 15px;
   }
-  .brand img {
-    width: 36px;
+  .brand-mark {
+    width: 30px;
     height: 36px;
   }
   .nav-item {
@@ -1040,7 +1050,7 @@ main {
   }
   .stats-grid {
     gap: 8px;
-    margin-bottom: 17px;
+    margin: 17px 0;
   }
   .stat-card {
     padding: 15px 12px;
@@ -1075,9 +1085,9 @@ main {
     padding: 21px 24px;
   }
   .timer-dial {
-    width: 275px;
+    width: 248px;
     max-width: 100%;
-    margin: 25px 0 17px;
+    margin: 18px 0 12px;
   }
   .timer-value strong {
     font-size: 59px;
@@ -1089,13 +1099,13 @@ main {
     font-size: 9px;
   }
   .overtime {
-    bottom: 44px;
+    bottom: 36px;
   }
   .goal-status {
     font-size: 10px;
   }
   .timer-controls {
-    margin-top: 22px;
+    margin-top: 16px;
     max-width: none;
   }
   .timer-note {

@@ -91,7 +91,7 @@ test('通知はリロード後に繰り返さず、状態はオフラインで�
 test('別タブの編集を防ぎ、レスポンシブ表示が動作する', async ({ page, context }, testInfo) => {
   const second = await context.newPage()
   await second.goto('/')
-  await expect(second.getByRole('alert')).toContainText('別のタブが編集中')
+  await expect(second.getByRole('alert')).toContainText('編集権限を待っています')
   await expect(second.getByRole('button', { name: '集中をはじめる' })).toBeDisabled()
   await second.close()
   await expect(page.locator('body')).toBeVisible()

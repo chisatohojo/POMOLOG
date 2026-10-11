@@ -7,7 +7,6 @@ import {
   Check,
   CheckCheck,
   CircleHelp,
-  Clock3,
   Coffee,
   History,
   Pause,
@@ -19,6 +18,8 @@ import {
   X,
 } from 'lucide-react'
 import { AppStore } from './app/store'
+import { EditorLockController } from './app/editorLock'
+import { useEditorLock } from './app/useEditorLock'
 import { LocalRepository, STORAGE_KEY } from './data/repository'
 import {
   NOTIFICATION_MS,
@@ -31,6 +32,7 @@ import {
 import type { Action, Learning, RecordFields, Session } from './domain/model'
 import { StudyFields } from './components/StudyFields'
 import { Review } from './components/Review'
+import { TodaySummary } from './components/TodaySummary'
 
 const dateFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'long',
@@ -38,38 +40,6 @@ const dateFormat = new Intl.DateTimeFormat('ja-JP', {
   weekday: 'long',
 })
 const timeFormat = new Intl.DateTimeFormat('ja-JP', { hour: '2-digit', minute: '2-digit' })
-
-function useEditorLock() {
-  const [access, setAccess] = useState<'pending' | 'ready' | 'blocked'>('pending')
-  useEffect(() => {
-    if (!navigator.locks) {
-      setAccess('ready')
-      return
-    }
-    let active = true
-    let release: (() => void) | undefined
-    void navigator.locks
-      .request('pomolog-editor', { ifAvailable: true }, async (lock) => {
-        if (!active) return
-        if (!lock) {
-          setAccess('blocked')
-          return
-        }
-        setAccess('ready')
-        await new Promise<void>((resolve) => {
-          release = resolve
-        })
-      })
-      .catch(() => {
-        if (active) setAccess('blocked')
-      })
-    return () => {
-      active = false
-      release?.()
-    }
-  }, [])
-  return access
-}
 
 function SessionList({ sessions }: { sessions: Session[] }) {
   return sessions.length === 0 ? (
@@ -111,6 +81,7 @@ function SessionList({ sessions }: { sessions: Session[] }) {
 }
 
 export default function App() {
+  const [editorLock] = useState(() => new EditorLockController(navigator.locks))
   const [notice, setNotice] = useState('')
   const [notificationPermission, setNotificationPermission] = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported',
@@ -136,17 +107,19 @@ export default function App() {
             }
           }
         },
+        Date.now,
+        editorLock.isOwner,
       ),
   )
   const { document: doc, error } = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const [now, setNow] = useState(Date.now)
   const [tab, setTab] = useState<'timer' | 'history'>('timer')
-  const access = useEditorLock()
-  const disabled = access !== 'ready' || doc === null
+  const access = useEditorLock(editorLock, store)
+  const disabled = access.status !== 'ready' || doc === null
   useEffect(() => {
     const tick = () => {
       setNow(Date.now())
-      if (access === 'ready') store.checkNotification()
+      if (editorLock.isOwner()) store.checkNotification()
     }
     tick()
     const interval = window.setInterval(tick, 250)
@@ -157,7 +130,7 @@ export default function App() {
       window.removeEventListener('focus', tick)
       document.removeEventListener('visibilitychange', tick)
     }
-  }, [store, access])
+  }, [store, editorLock])
 
   const dispatch = (action: Action) => {
     if (disabled) return false
@@ -186,13 +159,6 @@ export default function App() {
   const count = (timer?.correct ?? 0) + (timer?.incorrect ?? 0)
   const rate = accuracy(timer?.correct ?? 0, timer?.incorrect ?? 0)
   const sessions = doc?.sessions ?? []
-  const today = sessions.filter(
-    (s) => new Date(s.startedAt).toDateString() === new Date(now).toDateString(),
-  )
-  const todayFocus = today.reduce((sum, s) => sum + s.focusMs, 0)
-  const todayCorrect = today.reduce((sum, s) => sum + s.correct, 0)
-  const todayIncorrect = today.reduce((sum, s) => sum + s.incorrect, 0)
-  const todayRate = accuracy(todayCorrect, todayIncorrect)
   const editFields = (fields: Partial<RecordFields>) => {
     if (timer)
       dispatch({
@@ -233,8 +199,10 @@ export default function App() {
           }}
           aria-label="POMOLOG ホーム"
         >
-          <img src="/logo.png" alt="" />
-          <span>
+          <span className="brand-mark" aria-hidden="true">
+            <img src="/logo.png" alt="" />
+          </span>
+          <span className="brand-wordmark">
             POMOLOG<small>集中を、積み重ねよう。</small>
           </span>
         </a>
@@ -290,13 +258,17 @@ export default function App() {
             {dateFormat.format(now)}
           </div>
         </header>
-        {access === 'blocked' && (
+        {access.status === 'pending' && (
           <div className="banner" role="alert">
-            別のタブが編集中です。そのタブを閉じてから
-            <button className="text-button" onClick={() => location.reload()}>
-              再読み込み
+            編集権限を待っています。別のタブが編集中の場合、そのタブを閉じると自動で引き継ぎます。
+          </div>
+        )}
+        {access.status === 'error' && (
+          <div className="banner error" role="alert">
+            {access.message} データを保護するため編集を停止しています。
+            <button className="text-button" onClick={() => editorLock.start(() => store.reload())}>
+              再試行
             </button>
-            してください。
           </div>
         )}
         {error && (
@@ -316,44 +288,7 @@ export default function App() {
             </button>
           </div>
         )}
-        <section className="stats-grid" aria-label="本日の保存済み記録">
-          <div className="stat-card">
-            <span>
-              <Clock3 size={16} />
-              今日の集中時間
-            </span>
-            <strong>
-              {Math.floor(todayFocus / 60_000)}
-              <small>分</small>
-            </strong>
-            <p>保存したセットの合計</p>
-          </div>
-          <div className="stat-card">
-            <span>
-              <Target size={16} />
-              達成セット
-            </span>
-            <strong>
-              {today.filter((s) => achieved(s.focusMs)).length}
-              <small>セット</small>
-            </strong>
-            <p>20分以上の集中</p>
-          </div>
-          <div className="stat-card">
-            <span>
-              <CheckCheck size={16} />
-              解いた問題
-            </span>
-            <strong>
-              {todayCorrect + todayIncorrect}
-              <small>問</small>
-            </strong>
-            <p>
-              正解 {todayCorrect} 問 · 正答率{' '}
-              {todayRate === null ? '—' : `${Math.round(todayRate)}%`}
-            </p>
-          </div>
-        </section>
+        {tab === 'history' && <TodaySummary sessions={sessions} now={now} />}
         {tab === 'timer' ? (
           reviewing && timer ? (
             <Review key={timer.id} timer={timer} save={dispatch} disabled={disabled} />
@@ -526,31 +461,6 @@ export default function App() {
                     </span>
                   </div>
                 </section>
-                <section className="card memo-card">
-                  <div className="section-heading">
-                    <h2>
-                      <BookOpen size={18} />
-                      メモ
-                    </h2>
-                    <span className="subtle-label">気づきを残そう</span>
-                  </div>
-                  <label className="sr-only" htmlFor="session-memo">
-                    学習メモ
-                  </label>
-                  <textarea
-                    id="session-memo"
-                    value={timer?.memo ?? ''}
-                    disabled={disabled || !timer}
-                    maxLength={10000}
-                    placeholder={
-                      timer
-                        ? '学んだこと、つまずいたこと、次にやること…'
-                        : '集中をはじめると、メモを入力できます。'
-                    }
-                    onChange={(event) => editFields({ memo: event.target.value })}
-                  />
-                  <span className="memo-length">{timer?.memo.length ?? 0} / 10,000</span>
-                </section>
               </div>
             </div>
           )
@@ -567,6 +477,34 @@ export default function App() {
             <p className="history-note">
               定期的にデータを書き出して、積み重ねた記録を保管しましょう。
             </p>
+          </section>
+        )}
+        {tab === 'timer' && <TodaySummary sessions={sessions} now={now} />}
+        {tab === 'timer' && !reviewing && (
+          <section className="card memo-card">
+            <div className="section-heading">
+              <h2>
+                <BookOpen size={18} />
+                メモ
+              </h2>
+              <span className="subtle-label">気づきを残そう</span>
+            </div>
+            <label className="sr-only" htmlFor="session-memo">
+              学習メモ
+            </label>
+            <textarea
+              id="session-memo"
+              value={timer?.memo ?? ''}
+              disabled={disabled || !timer}
+              maxLength={10000}
+              placeholder={
+                timer
+                  ? '学んだこと、つまずいたこと、次にやること…'
+                  : '集中をはじめると、メモを入力できます。'
+              }
+              onChange={(event) => editFields({ memo: event.target.value })}
+            />
+            <span className="memo-length">{timer?.memo.length ?? 0} / 10,000</span>
           </section>
         )}
         {tab === 'timer' && !reviewing && (

@@ -25,6 +25,37 @@ afterEach(() => {
 })
 
 describe('保存・復元と通知', () => {
+  it('所有権がない場合は直接の操作・通知からも保存データを書き換えない', () => {
+    const storage = new MemoryStorage()
+    let owner = false
+    const notify = vi.fn()
+    const store = new AppStore(new LocalRepository(storage), notify, Date.now, () => owner)
+    expect(store.dispatch({ type: 'start', id: 'blocked' })).toBe(false)
+    expect(storage.getItem(STORAGE_KEY)).toBeNull()
+    owner = true
+    store.dispatch({ type: 'start', id: 'owned' })
+    const raw = storage.getItem(STORAGE_KEY)
+    owner = false
+    vi.setSystemTime(start + NOTIFICATION_MS)
+    store.checkNotification()
+    expect(store.dispatch({ type: 'count', kind: 'correct' })).toBe(false)
+    expect(store.dispatch({ type: 'finish' })).toBe(false)
+    expect(notify).not.toHaveBeenCalled()
+    expect(storage.getItem(STORAGE_KEY)).toBe(raw)
+  })
+  it('権限引継ぎ時の再読込は最新状態を取得し、既存データに書き込まない', () => {
+    const storage = new MemoryStorage()
+    const first = new AppStore(new LocalRepository(storage), vi.fn())
+    const waiting = new AppStore(new LocalRepository(storage), vi.fn())
+    first.dispatch({ type: 'start', id: 'handoff' })
+    first.dispatch({ type: 'count', kind: 'correct' })
+    const raw = storage.getItem(STORAGE_KEY)
+    expect(waiting.reload()).toBe(true)
+    expect(waiting.getSnapshot().document?.timer).toMatchObject({ id: 'handoff', correct: 1 })
+    expect(storage.getItem(STORAGE_KEY)).toBe(raw)
+    expect(waiting.dispatch({ type: 'count', kind: 'correct' })).toBe(true)
+    expect(new LocalRepository(storage).load().timer?.correct).toBe(2)
+  })
   it.each(['running', 'paused', 'break', 'review'] as const)(
     '%sを新しいStoreに復元して時刻から計算する',
     (status) => {

@@ -7,15 +7,19 @@ export interface Snapshot {
   error: string | null
 }
 export class AppStore {
-  private snapshot: Snapshot
+  private snapshot: Snapshot = { document: null, error: null }
   private listeners = new Set<() => void>()
   constructor(
     private readonly repository: Repository,
     private readonly notify: () => void,
     private readonly clock = Date.now,
+    private readonly canWrite = () => true,
   ) {
+    this.reload()
+  }
+  reload = (): boolean => {
     try {
-      this.snapshot = { document: repository.load(), error: null }
+      this.snapshot = { document: this.repository.load(), error: null }
     } catch {
       this.snapshot = {
         document: null,
@@ -23,6 +27,8 @@ export class AppStore {
           '保存データを読み込めません。元データは保持されています。JSONを退避してからデータ形式・ブラウザ設定を確認してください。',
       }
     }
+    this.emit()
+    return this.snapshot.document !== null
   }
   getSnapshot = (): Snapshot => this.snapshot
   subscribe = (callback: () => void): (() => void) => {
@@ -35,6 +41,7 @@ export class AppStore {
     this.listeners.forEach((listener) => listener())
   }
   dispatch(action: Action): boolean {
+    if (!this.canWrite()) return false
     const doc = this.snapshot.document
     if (!doc) return false
     try {
