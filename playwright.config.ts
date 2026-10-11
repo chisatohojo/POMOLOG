@@ -19,7 +19,7 @@ export default defineConfig({
     { name: 'mobile', testIgnore: 'browser-recovery.spec.ts', use: { ...devices['Pixel 7'] } },
     {
       name: 'dev-chrome',
-      testMatch: ['editor-lock.spec.ts', 'browser-recovery.spec.ts'],
+      testMatch: ['editor-lock.spec.ts', 'browser-recovery.spec.ts', 'learning-items.spec.ts'],
       use: { ...devices['Desktop Chrome'], channel: 'chrome', baseURL: 'http://127.0.0.1:5181' },
     },
   ],

@@ -3,6 +3,7 @@ import { Check, Save } from 'lucide-react'
 import { achieved, accuracy, formatDuration } from '../domain/model'
 import type { Action, Timer } from '../domain/model'
 import { StudyFields } from './StudyFields'
+import type { StudyItem } from '../domain/learning'
 
 function localDateTime(time: number): string {
   const date = new Date(time)
@@ -13,10 +14,12 @@ export function Review({
   timer,
   save,
   disabled,
+  items,
 }: {
   timer: Timer
   save: (action: Action) => boolean
   disabled: boolean
+  items: StudyItem[]
 }) {
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
@@ -81,7 +84,7 @@ export function Review({
         }}
       >
         <fieldset disabled={disabled}>
-          <StudyFields value={learning} onChange={setLearning} />
+          <StudyFields value={learning} items={items} onChange={setLearning} />
           <div className="field-pair">
             <label>
               開始時刻

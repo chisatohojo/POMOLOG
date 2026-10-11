@@ -10,6 +10,7 @@ import {
   transition,
 } from './model'
 import type { AppDocument, Session } from './model'
+import { learningFromIds } from './learning'
 
 const start = 1_800_000_000_000
 const begin = () => transition(emptyDocument(), { type: 'start', id: 'test-session' }, start)
@@ -119,7 +120,7 @@ describe('時刻ベースの集中タイマー', () => {
   it('確認で修正した値を保存し、時間の整合性が崩れた値を拒否する', () => {
     const doc = transition(begin(), { type: 'finish' }, start + 30 * 60_000)
     const session: Omit<Session, 'id' | 'createdAt' | 'updatedAt'> = {
-      learning: { subject: '英語', middle: '文法', small: '時制' },
+      learning: learningFromIds(doc.items, doc.items[2].id),
       correct: 3,
       incorrect: 1,
       memo: '復習',

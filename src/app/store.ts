@@ -18,8 +18,17 @@ export class AppStore {
     this.reload()
   }
   reload = (): boolean => {
+    return this.read(false)
+  }
+  prepareForEditing = (): boolean => {
+    return this.read(true)
+  }
+  private read(migrate: boolean): boolean {
     try {
-      this.snapshot = { document: this.repository.load(), error: null }
+      this.snapshot = {
+        document: migrate ? this.repository.prepareForEditing() : this.repository.load(),
+        error: null,
+      }
     } catch {
       this.snapshot = {
         document: null,

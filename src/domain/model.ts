@@ -1,16 +1,24 @@
 import { z } from 'zod'
+import {
+  learningSchema,
+  itemSchema,
+  initialItems,
+  learningFromIds,
+  acceptLearning,
+  nextSelection,
+  mutateItems,
+  validateItems,
+  validLearning,
+} from './learning'
+import type { ItemAction } from './learning'
+import { applyTemplates } from './templates'
+export { learningSchema } from './learning'
 
 export const ACHIEVEMENT_MS = 20 * 60_000
 export const NOTIFICATION_MS = 25 * 60_000
-export const SUBJECTS = ['国語', '数学', '英語', '理科', '社会', '情報', 'その他'] as const
 
 const timestamp = z.number().int().nonnegative()
 const count = z.number().int().min(0).max(1_000_000)
-export const learningSchema = z.object({
-  subject: z.string().min(1).max(100),
-  middle: z.string().max(100),
-  small: z.string().max(100),
-})
 export const recordSchema = z.object({
   learning: learningSchema,
   correct: count,
@@ -52,13 +60,26 @@ export const sessionSchema = recordSchema
     (s) => s.endedAt >= s.startedAt && s.focusMs <= s.endedAt - s.startedAt,
     '集中時間または開始・終了時刻が不正です',
   )
-export const documentSchema = z.object({
-  schemaVersion: z.literal(1),
-  revision: z.number().int().nonnegative(),
-  selection: learningSchema,
-  timer: timerSchema.nullable(),
-  sessions: z.array(sessionSchema),
-})
+export const documentSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    items: z.array(itemSchema),
+    revision: z.number().int().nonnegative(),
+    selection: learningSchema,
+    timer: timerSchema.nullable(),
+    sessions: z.array(sessionSchema),
+  })
+  .superRefine((doc, ctx) => {
+    if (
+      !validateItems(doc.items) ||
+      !validLearning(doc.items, doc.selection, false) ||
+      (doc.timer && !validLearning(doc.items, doc.timer.learning)) ||
+      doc.sessions.some((session) => !validLearning(doc.items, session.learning))
+    )
+      ctx.addIssue({ code: 'custom', message: '学習項目のIDまたは親子関係が不正です。' })
+    if (new Set(doc.sessions.map((session) => session.id)).size !== doc.sessions.length)
+      ctx.addIssue({ code: 'custom', message: '学習記録のIDが重複しています。' })
+  })
 
 export type Learning = z.infer<typeof learningSchema>
 export type RecordFields = z.infer<typeof recordSchema>
@@ -67,10 +88,12 @@ export type Session = z.infer<typeof sessionSchema>
 export type AppDocument = z.infer<typeof documentSchema>
 
 export function emptyDocument(): AppDocument {
+  const items = initialItems()
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    items,
     revision: 0,
-    selection: { subject: '数学', middle: '', small: '' },
+    selection: learningFromIds(items, items[1].id),
     timer: null,
     sessions: [],
   }
@@ -99,6 +122,8 @@ export function learningLabel(learning: Learning): string {
 }
 
 export type Action =
+  | ItemAction
+  | { type: 'apply-templates'; ids: string[] }
   | { type: 'start'; id: string }
   | { type: 'pause' | 'break' | 'resume' | 'finish' | 'claim-notification' | 'undo' }
   | { type: 'select'; learning: Learning }
@@ -114,6 +139,21 @@ export type Action =
 
 // Time is supplied explicitly: a rendering interval never mutates elapsed time.
 export function transition(doc: AppDocument, action: Action, now: number): AppDocument {
+  if (
+    action.type === 'item-add' ||
+    action.type === 'item-rename' ||
+    action.type === 'item-archive' ||
+    action.type === 'item-move' ||
+    action.type === 'apply-templates'
+  ) {
+    const items =
+      action.type === 'apply-templates'
+        ? applyTemplates(doc.items, action.ids, now)
+        : mutateItems(doc.items, action, now)
+    return items === doc.items
+      ? doc
+      : { ...doc, items, selection: nextSelection(items, doc.selection) }
+  }
   const timer = doc.timer
   switch (action.type) {
     case 'start':
@@ -128,7 +168,7 @@ export function transition(doc: AppDocument, action: Action, now: number): AppDo
           accumulatedMs: 0,
           endedAt: null,
           notificationSent: false,
-          learning: { ...doc.selection },
+          learning: acceptLearning(doc.items, doc.selection),
           correct: 0,
           incorrect: 0,
           memo: '',
@@ -137,7 +177,7 @@ export function transition(doc: AppDocument, action: Action, now: number): AppDo
       }
     case 'select':
       if (timer) return doc
-      return { ...doc, selection: learningSchema.parse(action.learning) }
+      return { ...doc, selection: acceptLearning(doc.items, action.learning) }
     case 'pause':
     case 'break':
       if (!timer || timer.status !== 'running') return doc
@@ -181,6 +221,7 @@ export function transition(doc: AppDocument, action: Action, now: number): AppDo
         timer: {
           ...timer,
           ...recordSchema.parse(action.fields),
+          learning: acceptLearning(doc.items, action.fields.learning, timer.learning),
           undo:
             action.fields.correct !== timer.correct || action.fields.incorrect !== timer.incorrect
               ? []
@@ -209,6 +250,7 @@ export function transition(doc: AppDocument, action: Action, now: number): AppDo
       if (!timer || timer.status !== 'review') return doc
       const session = sessionSchema.parse({
         ...action.session,
+        learning: acceptLearning(doc.items, action.session.learning, timer.learning),
         id: timer.id,
         createdAt: now,
         updatedAt: now,
@@ -217,7 +259,7 @@ export function transition(doc: AppDocument, action: Action, now: number): AppDo
         throw new Error('この記録はすでに保存されています')
       return {
         ...doc,
-        selection: session.learning,
+        selection: nextSelection(doc.items, session.learning),
         timer: null,
         sessions: [...doc.sessions, session],
       }

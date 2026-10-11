@@ -33,6 +33,8 @@ import type { Action, Learning, RecordFields, Session } from './domain/model'
 import { StudyFields } from './components/StudyFields'
 import { Review } from './components/Review'
 import { TodaySummary } from './components/TodaySummary'
+import { ItemManager } from './components/ItemManager'
+import { emptyLearning } from './domain/learning'
 
 const dateFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'long',
@@ -113,7 +115,7 @@ export default function App() {
   )
   const { document: doc, error } = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const [now, setNow] = useState(Date.now)
-  const [tab, setTab] = useState<'timer' | 'history'>('timer')
+  const [tab, setTab] = useState<'timer' | 'history' | 'items'>('timer')
   const access = useEditorLock(editorLock, store)
   const disabled = access.status !== 'ready' || doc === null
   useEffect(() => {
@@ -155,7 +157,8 @@ export default function App() {
   const goalReached = achieved(elapsed)
   const running = timer?.status === 'running'
   const reviewing = timer?.status === 'review'
-  const learning = timer?.learning ?? doc?.selection ?? { subject: '数学', middle: '', small: '' }
+  const learning = timer?.learning ?? doc?.selection ?? emptyLearning()
+  const items = doc?.items ?? []
   const count = (timer?.correct ?? 0) + (timer?.incorrect ?? 0)
   const rate = accuracy(timer?.correct ?? 0, timer?.incorrect ?? 0)
   const sessions = doc?.sessions ?? []
@@ -224,6 +227,14 @@ export default function App() {
             <History size={20} />
             学習履歴<span className="nav-count">{sessions.length}</span>
           </button>
+          <button
+            className={tab === 'items' ? 'nav-item active' : 'nav-item'}
+            onClick={() => setTab('items')}
+            aria-current={tab === 'items' ? 'page' : undefined}
+          >
+            <BookOpen size={20} />
+            学習項目管理
+          </button>
         </nav>
         <div className="sidebar-bottom">
           <div className="local-status">
@@ -246,11 +257,15 @@ export default function App() {
         <header className="page-heading">
           <div>
             <span className="eyebrow">YOUR STUDY, YOUR PACE</span>
-            <h1>{tab === 'timer' ? '集中タイマー' : '学習履歴'}</h1>
+            <h1>
+              {tab === 'timer' ? '集中タイマー' : tab === 'history' ? '学習履歴' : '学習項目管理'}
+            </h1>
             <p>
               {tab === 'timer'
                 ? '目の前のひとつに、集中しよう。'
-                : '積み重ねた時間を、振り返ろう。'}
+                : tab === 'history'
+                  ? '積み重ねた時間を、振り返ろう。'
+                  : '学ぶことを、あなたらしく。'}
             </p>
           </div>
           <div className="date-label">
@@ -266,7 +281,10 @@ export default function App() {
         {access.status === 'error' && (
           <div className="banner error" role="alert">
             {access.message} データを保護するため編集を停止しています。
-            <button className="text-button" onClick={() => editorLock.start(() => store.reload())}>
+            <button
+              className="text-button"
+              onClick={() => editorLock.start(() => store.prepareForEditing())}
+            >
               再試行
             </button>
           </div>
@@ -289,9 +307,17 @@ export default function App() {
           </div>
         )}
         {tab === 'history' && <TodaySummary sessions={sessions} now={now} />}
-        {tab === 'timer' ? (
+        {tab === 'items' ? (
+          doc && <ItemManager doc={doc} dispatch={dispatch} disabled={disabled} />
+        ) : tab === 'timer' ? (
           reviewing && timer ? (
-            <Review key={timer.id} timer={timer} save={dispatch} disabled={disabled} />
+            <Review
+              key={timer.id}
+              timer={timer}
+              items={items}
+              save={dispatch}
+              disabled={disabled}
+            />
           ) : (
             <div className="workspace">
               <section className="card timer-card" aria-labelledby="timer-title">
@@ -349,6 +375,7 @@ export default function App() {
                   {!timer ? (
                     <button
                       className="primary start-button"
+                      disabled={!learning.subjectId}
                       onClick={() => dispatch({ type: 'start', id: crypto.randomUUID() })}
                     >
                       <Play size={19} fill="currentColor" />
@@ -407,11 +434,16 @@ export default function App() {
                       <BookOpen size={18} />
                       学習内容
                     </h2>
-                    <span className="subtle-label">このセットの記録</span>
+                    <button className="text-button" onClick={() => setTab('items')}>
+                      項目を管理
+                    </button>
                   </div>
                   <fieldset disabled={disabled}>
-                    <StudyFields value={learning} onChange={changeLearning} />
+                    <StudyFields value={learning} items={items} onChange={changeLearning} />
                   </fieldset>
+                  {!learning.subjectId && (
+                    <p className="muted">項目管理から教科を追加・復元してください。</p>
+                  )}
                 </section>
                 <section className="card problem-card">
                   <div className="section-heading">
