@@ -12,6 +12,7 @@ import {
 } from './learning'
 import type { ItemAction } from './learning'
 import { applyTemplates } from './templates'
+import { planImport } from './import'
 export { learningSchema } from './learning'
 
 export const ACHIEVEMENT_MS = 20 * 60_000
@@ -123,6 +124,7 @@ export function learningLabel(learning: Learning): string {
 }
 
 export type Action =
+  | { type: 'import-data'; document: AppDocument; expectedRevision: number }
   | { type: 'session-edit'; id: string; expectedUpdatedAt: number; fields: SessionContent }
   | { type: 'session-delete' | 'session-restore'; id: string; expectedUpdatedAt: number }
   | ItemAction
@@ -147,6 +149,13 @@ export type SessionContent = Pick<
 
 // Time is supplied explicitly: a rendering interval never mutates elapsed time.
 export function transition(doc: AppDocument, action: Action, now: number): AppDocument {
+  if (action.type === 'import-data') {
+    if (doc.revision !== action.expectedRevision)
+      throw new Error('プレビュー後にデータが更新されました。再確認・再バックアップしてください。')
+    const plan = planImport(doc, documentSchema.parse(action.document))
+    if (plan.added === 0 && plan.addedItems === 0) return doc
+    return documentSchema.parse(plan.document)
+  }
   if (
     action.type === 'session-edit' ||
     action.type === 'session-delete' ||

@@ -1,6 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import {
   ArrowDownToLine,
+  ArrowUpFromLine,
   ArrowRight,
   Bell,
   BookOpen,
@@ -39,6 +40,8 @@ import { emptyLearning } from './domain/learning'
 import { activeSessions } from './domain/statistics'
 import { HistoryView } from './components/HistoryView'
 import { StatisticsView } from './components/StatisticsView'
+import { ImportDialog } from './components/ImportDialog'
+import { downloadJson } from './data/download'
 
 const dateFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'long',
@@ -89,6 +92,7 @@ function SessionList({ sessions }: { sessions: Session[] }) {
 export default function App() {
   const [editorLock] = useState(() => new EditorLockController(navigator.locks))
   const [notice, setNotice] = useState('')
+  const [showImport, setShowImport] = useState(false)
   const [notificationPermission, setNotificationPermission] = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported',
   )
@@ -146,12 +150,7 @@ export default function App() {
   function exportData() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY) ?? JSON.stringify(doc)
-      const url = URL.createObjectURL(new Blob([raw], { type: 'application/json' }))
-      const anchor = document.createElement('a')
-      anchor.href = url
-      anchor.download = `pomolog-${new Date().toLocaleDateString('sv-SE')}.json`
-      anchor.click()
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+      downloadJson(raw, `pomolog-${new Date().toLocaleDateString('sv-SE')}.json`)
     } catch {
       setNotice('データを書き出せませんでした。ブラウザの保存設定を確認してください。')
     }
@@ -261,6 +260,14 @@ export default function App() {
           <button className="text-button export-button" onClick={exportData}>
             <ArrowDownToLine size={16} />
             データを書き出す
+          </button>
+          <button
+            className="text-button export-button"
+            disabled={disabled}
+            onClick={() => setShowImport(true)}
+          >
+            <ArrowUpFromLine size={16} />
+            データを読み込む
           </button>
           <span className="version">A LITTLE, EVERY DAY.</span>
         </div>
@@ -577,6 +584,14 @@ export default function App() {
               データを書き出す
             </button>
             <button
+              className="text-button mobile-export"
+              disabled={disabled}
+              onClick={() => setShowImport(true)}
+            >
+              <ArrowUpFromLine size={14} />
+              データを読み込む
+            </button>
+            <button
               className="text-button"
               disabled={
                 notificationPermission === 'unsupported' ||
@@ -603,6 +618,29 @@ export default function App() {
           </div>
         </footer>
       </main>
+      {showImport && doc && (
+        <ImportDialog
+          doc={doc}
+          disabled={disabled}
+          close={() => setShowImport(false)}
+          importData={(incoming, revision) => {
+            const saved = dispatch({
+              type: 'import-data',
+              document: incoming,
+              expectedRevision: revision,
+            })
+            if (!saved)
+              return (
+                store.getSnapshot().error ??
+                '取り込めませんでした。編集権限と追加件数を確認してください。現在のデータは保持しています。'
+              )
+            setNotice(
+              'データを取り込みました。同じIDの記録はスキップし、現在データのバックアップを保持しています。',
+            )
+            return null
+          }}
+        />
+      )}
     </div>
   )
 }
