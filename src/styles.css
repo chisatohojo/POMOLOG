@@ -1490,3 +1490,351 @@ main {
     scroll-behavior: auto !important;
   }
 }
+
+.history-toolbar,
+.dialog-actions,
+.history-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.history-toolbar {
+  margin: 22px 0;
+}
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  background: #f3f4ef;
+  border-radius: 10px;
+  gap: 4px;
+}
+.segmented button {
+  padding: 10px 18px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #737c6c;
+}
+.segmented button[aria-pressed='true'] {
+  color: #bd453b;
+  background: white;
+  box-shadow: 0 1px 4px #3035350a;
+}
+.history-filters {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.item-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.search-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 12px;
+}
+.history-empty,
+.chart-empty {
+  color: #737c6c;
+  padding: 24px 0;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.history-entries {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+.history-entry {
+  padding: 0 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+}
+.history-entry .session-row {
+  border: 0;
+}
+.history-entry .session-info {
+  overflow-wrap: anywhere;
+}
+.history-entry details,
+.chart-data {
+  font-size: 12px;
+  color: #646b68;
+}
+summary {
+  cursor: pointer;
+  line-height: 1.8;
+}
+summary:focus-visible {
+  outline: 2px solid #e85c5070;
+  outline-offset: 3px;
+}
+.history-actions {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.session-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0 0;
+  padding: 18px;
+  background: #fafbf9;
+  border-radius: 8px;
+}
+.session-details div {
+  min-width: 0;
+}
+.session-details dt {
+  color: #737c6c;
+  font-size: 10px;
+}
+.session-details dd {
+  margin: 5px 0 0;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.inline-notice {
+  font-size: 12px;
+  color: #61734f;
+  margin-top: 16px;
+}
+.confirm-dialog {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px;
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  color: #303535;
+  box-shadow: 0 20px 80px #30353520;
+}
+.confirm-dialog::backdrop {
+  background: #30353566;
+}
+.confirm-dialog h2 {
+  font-size: 18px;
+  margin-bottom: 18px;
+}
+.confirm-dialog p {
+  font-size: 12px;
+  line-height: 1.9;
+  margin-bottom: 18px;
+  overflow-wrap: anywhere;
+}
+.dialog-actions {
+  justify-content: flex-end;
+}
+.cancel-edit {
+  margin-top: 14px;
+}
+.statistics-view {
+  display: grid;
+  gap: 22px;
+}
+.statistics-controls,
+.item-statistics,
+.chart-card {
+  padding: 26px;
+  min-width: 0;
+}
+.statistics-controls .history-note,
+.history-view .history-note,
+.chart-card .history-note {
+  line-height: 1.9;
+  margin-top: 16px;
+}
+.period-selector {
+  margin: 20px 0;
+}
+.statistics-summary {
+  margin: 0;
+}
+.statistics-summary .stat-card p {
+  line-height: 1.8;
+}
+.table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  margin-top: 18px;
+}
+.table-scroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+.table-scroll th,
+.table-scroll td {
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.table-scroll thead {
+  color: #737c6c;
+  background: #fafbf9;
+}
+.table-scroll tbody th {
+  font-weight: 500;
+  max-width: 220px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.table-scroll small {
+  display: block;
+  color: #737c6c;
+  margin-top: 4px;
+}
+.table-scroll caption {
+  text-align: left;
+  padding-bottom: 12px;
+  font-weight: 600;
+}
+.table-hint {
+  display: none;
+}
+.item-statistics .history-note {
+  margin-top: 16px;
+  line-height: 1.8;
+}
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-items: start;
+}
+.chart-card h2 {
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+.chart-card svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.chart-card svg text {
+  fill: #737c6c;
+  font-size: 12px;
+}
+.chart-grid-line {
+  stroke: #e9ebe7;
+  stroke-width: 1;
+}
+.chart-bar,
+.chart-point {
+  fill: #d96659;
+}
+.chart-line {
+  stroke: #d96659;
+  stroke-width: 2.5;
+  fill: none;
+}
+.chart-data {
+  margin-top: 12px;
+}
+.subject-bars {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 22px;
+}
+.subject-bars li > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.subject-bars span {
+  overflow-wrap: anywhere;
+}
+.subject-bars strong {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+.subject-track {
+  height: 10px;
+  border-radius: 6px;
+  background: #f3f4ef;
+  overflow: hidden;
+}
+.subject-track span {
+  display: block;
+  height: 100%;
+  background: #d96659;
+  border-radius: 6px;
+}
+@media (max-width: 650px) {
+  .sidebar nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .sidebar .nav-item {
+    font-size: 11px;
+  }
+  .item-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .charts-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+  .statistics-controls,
+  .item-statistics,
+  .chart-card {
+    padding: 20px;
+  }
+  .search-row,
+  .session-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .history-entry {
+    padding: 0 12px 16px;
+  }
+  .history-entry .session-row {
+    align-items: flex-start;
+  }
+  .history-entry .session-duration strong {
+    font-size: 14px;
+  }
+  .history-toolbar .segmented {
+    width: 100%;
+  }
+  .history-toolbar .segmented button {
+    flex: 1;
+  }
+  .period-selector {
+    display: flex;
+  }
+  .period-selector button {
+    flex: 1;
+    padding: 10px 7px;
+  }
+  .chart-card svg text {
+    font-size: 17px;
+  }
+  .table-scroll table {
+    font-size: 11px;
+  }
+  .item-statistics .table-scroll table {
+    min-width: 520px;
+  }
+  .table-hint {
+    display: block;
+    font-size: 10px;
+    color: #737c6c;
+    line-height: 1.8;
+  }
+  .statistics-controls .section-heading {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+}

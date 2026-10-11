@@ -1,11 +1,10 @@
 import { CheckCheck, Clock3, Target } from 'lucide-react'
 import { accuracy, achieved } from '../domain/model'
 import type { Session } from '../domain/model'
+import { inPeriod } from '../domain/statistics'
 
 export function TodaySummary({ sessions, now }: { sessions: Session[]; now: number }) {
-  const today = sessions.filter(
-    (s) => new Date(s.startedAt).toDateString() === new Date(now).toDateString(),
-  )
+  const today = inPeriod(sessions, 'today', now)
   const focus = today.reduce((sum, s) => sum + s.focusMs, 0)
   const correct = today.reduce((sum, s) => sum + s.correct, 0)
   const incorrect = today.reduce((sum, s) => sum + s.incorrect, 0)

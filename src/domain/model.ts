@@ -55,6 +55,7 @@ export const sessionSchema = recordSchema
     focusMs: timestamp,
     createdAt: timestamp,
     updatedAt: timestamp,
+    deletedAt: timestamp.nullable(),
   })
   .refine(
     (s) => s.endedAt >= s.startedAt && s.focusMs <= s.endedAt - s.startedAt,
@@ -62,7 +63,7 @@ export const sessionSchema = recordSchema
   )
 export const documentSchema = z
   .object({
-    schemaVersion: z.literal(2),
+    schemaVersion: z.literal(3),
     items: z.array(itemSchema),
     revision: z.number().int().nonnegative(),
     selection: learningSchema,
@@ -90,7 +91,7 @@ export type AppDocument = z.infer<typeof documentSchema>
 export function emptyDocument(): AppDocument {
   const items = initialItems()
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     items,
     revision: 0,
     selection: learningFromIds(items, items[1].id),
@@ -122,6 +123,8 @@ export function learningLabel(learning: Learning): string {
 }
 
 export type Action =
+  | { type: 'session-edit'; id: string; expectedUpdatedAt: number; fields: SessionContent }
+  | { type: 'session-delete' | 'session-restore'; id: string; expectedUpdatedAt: number }
   | ItemAction
   | { type: 'apply-templates'; ids: string[] }
   | { type: 'start'; id: string }
@@ -137,8 +140,52 @@ export type Action =
       >
     }
 
+export type SessionContent = Pick<
+  Session,
+  'learning' | 'correct' | 'incorrect' | 'memo' | 'startedAt' | 'endedAt' | 'focusMs'
+>
+
 // Time is supplied explicitly: a rendering interval never mutates elapsed time.
 export function transition(doc: AppDocument, action: Action, now: number): AppDocument {
+  if (
+    action.type === 'session-edit' ||
+    action.type === 'session-delete' ||
+    action.type === 'session-restore'
+  ) {
+    const existing = doc.sessions.find((session) => session.id === action.id)
+    if (!existing) throw new Error('学習記録が見つかりません。')
+    if (existing.updatedAt !== action.expectedUpdatedAt)
+      throw new Error('この記録は更新されています。編集を閉じ、最新の内容を確認してください。')
+    if (
+      (action.type === 'session-delete' && existing.deletedAt !== null) ||
+      (action.type === 'session-restore' && existing.deletedAt === null)
+    )
+      return doc
+    if (action.type === 'session-edit' && existing.deletedAt !== null)
+      throw new Error('削除済みの記録は復元してから編集してください。')
+    const updatedAt = Math.max(now, existing.updatedAt + 1)
+    const next = sessionSchema.parse(
+      action.type === 'session-edit'
+        ? {
+            ...existing,
+            ...action.fields,
+            id: existing.id,
+            createdAt: existing.createdAt,
+            deletedAt: null,
+            updatedAt,
+            learning: acceptLearning(doc.items, action.fields.learning, existing.learning),
+          }
+        : {
+            ...existing,
+            updatedAt,
+            deletedAt: action.type === 'session-delete' ? updatedAt : null,
+          },
+    )
+    return {
+      ...doc,
+      sessions: doc.sessions.map((session) => (session.id === existing.id ? next : session)),
+    }
+  }
   if (
     action.type === 'item-add' ||
     action.type === 'item-rename' ||
@@ -254,6 +301,7 @@ export function transition(doc: AppDocument, action: Action, now: number): AppDo
         id: timer.id,
         createdAt: now,
         updatedAt: now,
+        deletedAt: null,
       })
       if (doc.sessions.some((s) => s.id === timer.id))
         throw new Error('この記録はすでに保存されています')
