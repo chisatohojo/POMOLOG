@@ -1,3 +1,4 @@
+import { installPausedClock } from './clock'
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import type { AppDocument } from '../src/domain/model'
@@ -25,8 +26,7 @@ async function rename(page: Page, name: string, next: string) {
 test('任意の3階層を管理し、学習中に選択・改名・アーカイブしても記録を保持する', async ({
   page,
 }, info) => {
-  await page.clock.install({ time: new Date('2026-10-11T00:00:00Z') })
-  await page.clock.pauseAt(new Date('2026-10-11T00:00:00Z'))
+  await installPausedClock(page, new Date('2026-10-11T00:00:00Z'))
   await page.goto('/')
   await expect(page.getByRole('button', { name: '集中をはじめる' })).toBeEnabled()
   await expect(page.getByLabel('小項目', { exact: true })).toBeDisabled()
@@ -158,7 +158,7 @@ test('旧データを原文退避して移行し、再読込・権限引継ぎ�
   await page.goto('/')
   await expect(page.getByRole('button', { name: '集中をはじめる' })).toBeEnabled()
   const migrated = await data(page)
-  expect(migrated.schemaVersion).toBe(2)
+  expect(migrated.schemaVersion).toBe(3)
   expect(migrated.revision).toBe(18)
   expect(migrated.sessions[0]).toMatchObject(legacy.sessions[0])
   const backups = () =>
@@ -213,13 +213,12 @@ test('待機タブは旧形式を移行せず、ロック取得後に一度だ�
   await page.close()
   await expect(waiting.getByRole('button', { name: '集中をはじめる' })).toBeEnabled()
   expect((await data(waiting)).revision).toBe(6)
-  expect((await data(waiting)).schemaVersion).toBe(2)
+  expect((await data(waiting)).schemaVersion).toBe(3)
 })
 
 test('旧形式の進行中セットを移行し、計測・カウント・終了保存を継続できる', async ({ page }) => {
   const start = new Date('2026-10-11T00:00:00Z').getTime()
-  await page.clock.install({ time: new Date(start + 60_000) })
-  await page.clock.pauseAt(new Date(start + 60_000))
+  await installPausedClock(page, new Date(start + 60_000))
   const learning = { subject: '独自教科', middle: '', small: '小項目のみ' }
   const legacy = {
     schemaVersion: 1,

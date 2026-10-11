@@ -1,9 +1,9 @@
+import { installPausedClock } from './clock'
 import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 
 test.beforeEach(async ({ page }) => {
-  await page.clock.install({ time: new Date('2026-10-11T00:00:00Z') })
-  await page.clock.pauseAt(new Date('2026-10-11T00:00:00Z'))
+  await installPausedClock(page, new Date('2026-10-11T00:00:00Z'))
   await page.goto('/')
   await expect(page.getByRole('button', { name: '集中をはじめる' })).toBeEnabled()
 })
@@ -118,7 +118,7 @@ test('進行中の記録をJSONとして書き出せる', async ({ page }) => {
   ])
   const exported = JSON.parse(await readFile((await download.path())!, 'utf8'))
   expect(download.suggestedFilename()).toBe('pomolog-2026-10-11.json')
-  expect(exported.schemaVersion).toBe(2)
+  expect(exported.schemaVersion).toBe(3)
   expect(exported.items).toHaveLength(7)
   expect(exported.timer.learning.subjectId).toBeTruthy()
   expect(exported.timer).toMatchObject({ status: 'running', correct: 1, memo: '書き出しの確認' })

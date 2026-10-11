@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { LocalRepository, STORAGE_KEY, decodeDocument, migrationBackupKey } from './repository'
-import { migrateV1 } from './migrations'
+import { migrateV1, migrateV2 } from './migrations'
 import { AppStore } from '../app/store'
 import { elapsedMs } from '../domain/model'
 
@@ -63,7 +63,7 @@ describe('v1からv2への移行・原文保全', () => {
     const next = migrateV1(old)
     expect(JSON.stringify(old)).toBe(raw)
     expect(migrateV1(old)).toEqual(next)
-    expect(decodeDocument(JSON.stringify(next))).toEqual(next)
+    expect(decodeDocument(JSON.stringify(next))).toEqual(migrateV2(next))
     expect(next.schemaVersion).toBe(2)
     expect(next.revision).toBe(42)
     expect(next.timer).toMatchObject(old.timer)
@@ -187,5 +187,59 @@ describe('v1からv2への移行・原文保全', () => {
     })
     expect(store.prepareForEditing()).toBe(true)
     expect(store.getSnapshot().document?.sessions).toHaveLength(2)
+  })
+})
+
+describe('v1/v2からv3への移行', () => {
+  it.each([1, 2] as const)('v%i原文と既存バックアップを保全し、一度だけv3へ確定する', (version) => {
+    const old = version === 1 ? legacy() : migrateV1(legacy())
+    const raw = JSON.stringify(old, null, 2)
+    const { repository, storage, data } = memory(raw)
+    data.set('pomolog.backup.v1.previous', '以前の退避')
+    const read = repository.load()
+    expect(read.schemaVersion).toBe(3)
+    expect(storage.setItem).not.toHaveBeenCalled()
+    expect(read.sessions.every((session) => session.deletedAt === null)).toBe(true)
+    expect(read.timer).toMatchObject(old.timer!)
+    const next = repository.prepareForEditing()
+    expect(next).toEqual({ ...read, revision: 43 })
+    expect(data.get(migrationBackupKey(raw, version))).toBe(raw)
+    expect(data.get('pomolog.backup.v1.previous')).toBe('以前の退避')
+    expect(repository.prepareForEditing()).toEqual(next)
+    expect(storage.setItem).toHaveBeenCalledTimes(2)
+    expect(decodeDocument(JSON.stringify(next))).toEqual(next)
+  })
+  it.each(['backup', 'main'])(
+    'v2の%s書込み失敗で旧主データを保持し、再試行で同じIDへ移行する',
+    (failure) => {
+      const v2 = migrateV1(legacy())
+      const raw = JSON.stringify(v2)
+      const { repository, storage, data } = memory(raw)
+      storage.setItem.mockImplementation((key, value) => {
+        if ((failure === 'main') === (key === STORAGE_KEY)) throw new Error('容量不足')
+        data.set(key, value)
+      })
+      expect(() => repository.prepareForEditing()).toThrow()
+      expect(data.get(STORAGE_KEY)).toBe(raw)
+      storage.setItem.mockImplementation((key, value) => {
+        data.set(key, value)
+      })
+      const next = repository.prepareForEditing()
+      expect(next.items).toEqual(v2.items)
+      expect(next.sessions.map((session) => session.learning)).toEqual(
+        v2.sessions.map((session) => session.learning),
+      )
+      expect(data.get(migrationBackupKey(raw, 2))).toBe(raw)
+    },
+  )
+  it('不正なv2参照と未知バージョンを退避・上書きしない', () => {
+    const v2 = migrateV1(legacy())
+    v2.sessions[0].learning.subjectId = 'missing'
+    for (const raw of [JSON.stringify(v2), '{"schemaVersion":4}']) {
+      const { repository, storage, data } = memory(raw)
+      expect(() => repository.prepareForEditing()).toThrow()
+      expect(storage.setItem).not.toHaveBeenCalled()
+      expect(data.get(STORAGE_KEY)).toBe(raw)
+    }
   })
 })

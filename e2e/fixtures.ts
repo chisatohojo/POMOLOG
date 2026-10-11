@@ -26,6 +26,7 @@ seeded.items = mutateItems(
 )
 seeded.sessions.push({
   id: 'existing-history',
+  deletedAt: null,
   learning: learningFromIds(seeded.items, seeded.items[2].id, 'existing-middle', 'existing-small'),
   startedAt: 1_800_000_000_000,
   endedAt: 1_800_001_200_000,

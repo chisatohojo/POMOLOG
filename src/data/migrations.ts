@@ -3,9 +3,11 @@ import { documentSchema } from '../domain/model'
 import type { AppDocument } from '../domain/model'
 import { initialItems, normalizeName, stableId } from '../domain/learning'
 import type { StudyItem, Learning } from '../domain/learning'
+import { legacyV2Schema } from './legacyV2'
+import type { z } from 'zod'
 
 // Pure and deterministic: reading in a waiting tab never writes or generates new IDs.
-export function migrateV1(value: unknown): AppDocument {
+export function migrateV1(value: unknown): z.infer<typeof legacyV2Schema> {
   const old = legacyDocumentSchema.parse(value)
   const items = initialItems()
   function ensure(name: string, level: StudyItem['level'], parentId: string | null): string {
@@ -44,5 +46,14 @@ export function migrateV1(value: unknown): AppDocument {
     ...session,
     learning: learning(session.learning),
   }))
-  return documentSchema.parse({ ...old, schemaVersion: 2, items, selection, timer, sessions })
+  return legacyV2Schema.parse({ ...old, schemaVersion: 2, items, selection, timer, sessions })
+}
+
+export function migrateV2(value: unknown): AppDocument {
+  const old = legacyV2Schema.parse(value)
+  return documentSchema.parse({
+    ...old,
+    schemaVersion: 3,
+    sessions: old.sessions.map((session) => ({ ...session, deletedAt: null })),
+  })
 }

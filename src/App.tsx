@@ -16,6 +16,7 @@ import {
   Target,
   Timer as TimerIcon,
   X,
+  BarChart3,
 } from 'lucide-react'
 import { AppStore } from './app/store'
 import { EditorLockController } from './app/editorLock'
@@ -35,6 +36,9 @@ import { Review } from './components/Review'
 import { TodaySummary } from './components/TodaySummary'
 import { ItemManager } from './components/ItemManager'
 import { emptyLearning } from './domain/learning'
+import { activeSessions } from './domain/statistics'
+import { HistoryView } from './components/HistoryView'
+import { StatisticsView } from './components/StatisticsView'
 
 const dateFormat = new Intl.DateTimeFormat('ja-JP', {
   month: 'long',
@@ -115,7 +119,7 @@ export default function App() {
   )
   const { document: doc, error } = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const [now, setNow] = useState(Date.now)
-  const [tab, setTab] = useState<'timer' | 'history' | 'items'>('timer')
+  const [tab, setTab] = useState<'timer' | 'history' | 'items' | 'stats'>('timer')
   const access = useEditorLock(editorLock, store)
   const disabled = access.status !== 'ready' || doc === null
   useEffect(() => {
@@ -161,7 +165,7 @@ export default function App() {
   const items = doc?.items ?? []
   const count = (timer?.correct ?? 0) + (timer?.incorrect ?? 0)
   const rate = accuracy(timer?.correct ?? 0, timer?.incorrect ?? 0)
-  const sessions = doc?.sessions ?? []
+  const sessions = activeSessions(doc?.sessions ?? [])
   const editFields = (fields: Partial<RecordFields>) => {
     if (timer)
       dispatch({
@@ -235,6 +239,14 @@ export default function App() {
             <BookOpen size={20} />
             学習項目管理
           </button>
+          <button
+            className={tab === 'stats' ? 'nav-item active' : 'nav-item'}
+            onClick={() => setTab('stats')}
+            aria-current={tab === 'stats' ? 'page' : undefined}
+          >
+            <BarChart3 size={20} />
+            学習統計
+          </button>
         </nav>
         <div className="sidebar-bottom">
           <div className="local-status">
@@ -258,14 +270,22 @@ export default function App() {
           <div>
             <span className="eyebrow">YOUR STUDY, YOUR PACE</span>
             <h1>
-              {tab === 'timer' ? '集中タイマー' : tab === 'history' ? '学習履歴' : '学習項目管理'}
+              {tab === 'timer'
+                ? '集中タイマー'
+                : tab === 'history'
+                  ? '学習履歴'
+                  : tab === 'stats'
+                    ? '学習統計'
+                    : '学習項目管理'}
             </h1>
             <p>
               {tab === 'timer'
                 ? '目の前のひとつに、集中しよう。'
                 : tab === 'history'
                   ? '積み重ねた時間を、振り返ろう。'
-                  : '学ぶことを、あなたらしく。'}
+                  : tab === 'stats'
+                    ? '積み重ねを、次の一歩に。'
+                    : '学ぶことを、あなたらしく。'}
             </p>
           </div>
           <div className="date-label">
@@ -307,7 +327,9 @@ export default function App() {
           </div>
         )}
         {tab === 'history' && <TodaySummary sessions={sessions} now={now} />}
-        {tab === 'items' ? (
+        {tab === 'stats' ? (
+          doc && <StatisticsView doc={doc} now={now} />
+        ) : tab === 'items' ? (
           doc && <ItemManager doc={doc} dispatch={dispatch} disabled={disabled} />
         ) : tab === 'timer' ? (
           reviewing && timer ? (
@@ -497,19 +519,7 @@ export default function App() {
             </div>
           )
         ) : (
-          <section className="card history-card">
-            <div className="section-heading">
-              <h2>
-                <History size={18} />
-                すべての学習記録
-              </h2>
-              <span className="subtle-label">{sessions.length} 件</span>
-            </div>
-            <SessionList sessions={[...sessions].reverse()} />
-            <p className="history-note">
-              定期的にデータを書き出して、積み重ねた記録を保管しましょう。
-            </p>
-          </section>
+          doc && <HistoryView doc={doc} dispatch={dispatch} disabled={disabled} />
         )}
         {tab === 'timer' && <TodaySummary sessions={sessions} now={now} />}
         {tab === 'timer' && !reviewing && (
@@ -551,7 +561,7 @@ export default function App() {
                 <ArrowRight size={15} />
               </button>
             </div>
-            <SessionList sessions={[...sessions].reverse().slice(0, 3)} />
+            <SessionList sessions={sessions.slice(0, 3)} />
           </section>
         )}
         <footer className="page-footer">
