@@ -9,3 +9,20 @@ test-results/
 *.local
 *.log
 *.tsbuildinfo
+
+# Personal study exports and migration backup dumps (browser data stays local).
+pomolog-*.json
+pomolog.backup*
+pomolog-backup*
+
+# Local credentials and private keys.
+secrets/
+credentials/
+credentials*.json
+*service-account*.json
+*service_account*.json
+*firebase-adminsdk*.json
+*.pem
+*.key
+*.p12
+*.pfx
