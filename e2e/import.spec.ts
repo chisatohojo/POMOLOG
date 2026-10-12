@@ -71,11 +71,11 @@ test('プレビュー・バックアップ・追加取り込み・再読込で�
   const incoming = transition(source(), { type: 'start', id: 'file-timer' }, Date.now())
   await choose(page, incoming)
   await expect(dialog(page).getByTestId('import-counts')).toHaveText(
-    '追加 2件（削除済み 1件） / 重複スキップ 1件 / 学習項目追加 3件',
+    '追加 2件（削除済み 1件） / 重複スキップ 1件 / 学習項目統合 0件 / 学習項目追加 3件 / 統合できない項目・競合 0件',
   )
   await expect(dialog(page)).toContainText('ファイル内の進行中セット1件は取り込み対象外')
   await expect(dialog(page)).toContainText('資格学習')
-  await expect(confirm(page)).toBeDisabled()
+  await expect(confirm(page)).toBeEnabled()
   expect(await rawData(page)).toBe(raw)
   expect(await backup(page)).toEqual(before)
   await expect(confirm(page)).toBeEnabled()
@@ -191,7 +191,7 @@ test('ダウンロード・内部バックアップ・本体保存の失敗時�
   })
   await dialog(page).getByRole('button', { name: 'バックアップを書き出す', exact: true }).click()
   await expect(dialog(page).getByRole('alert')).toContainText('書き出せませんでした')
-  await expect(confirm(page)).toBeDisabled()
+  await expect(confirm(page)).toBeEnabled()
   await page.evaluate(() =>
     (window as unknown as { restoreDownload: () => void }).restoreDownload(),
   )
@@ -226,7 +226,7 @@ test('ダウンロード・内部バックアップ・本体保存の失敗時�
   expect((await data(page)).sessions).toHaveLength(3)
 })
 
-test('非所有タブは取り込めず、引継ぎ後のrevision変更で再バックアップを要求する', async ({
+test('非所有タブは取り込めず、引継ぎ後のrevision変更で再確認を要求する', async ({
   page,
   context,
 }) => {
@@ -252,12 +252,149 @@ test('非所有タブは取り込めず、引継ぎ後のrevision変更で再バ
   ).toBeEnabled()
   await expect(dialog(page).getByRole('alert')).toContainText('再確認')
   await expect(confirm(page)).toBeDisabled()
-  const refreshed = await backup(page)
-  expect(refreshed.timer?.correct).toBe(1)
+  const refreshed = await rawData(page)
+  expect(JSON.parse(refreshed!).timer?.correct).toBe(1)
+  await dialog(page).getByRole('button', { name: '最新データで再確認', exact: true }).click()
+  await expect(confirm(page)).toBeEnabled()
   await confirm(page).click()
   await expect(dialog(page)).toHaveCount(0)
   expect((await data(page)).timer?.correct).toBe(1)
   expect((await data(page)).sessions).toHaveLength(3)
+  expect(await page.evaluate((key) => localStorage.getItem(key), importBackupKey(refreshed!))).toBe(
+    refreshed,
+  )
+})
+
+function foreignSource() {
+  const incoming = structuredClone(seeded)
+  const foreign = (id: string | null) => (id === null ? null : `foreign-${id}`)
+  incoming.items = incoming.items.map((item) => ({
+    ...item,
+    id: foreign(item.id)!,
+    parentId: foreign(item.parentId),
+    name: ` ${item.name} `,
+  }))
+  const learning = {
+    ...incoming.sessions[0].learning,
+    subjectId: foreign(seeded.items[2].id),
+    middleId: foreign('existing-middle'),
+    smallId: foreign('existing-small'),
+    subject: '昔の英語',
+    middle: '旧文法',
+    small: '旧時制',
+  }
+  incoming.selection = learning
+  incoming.sessions = [
+    { ...incoming.sessions[0], learning },
+    {
+      ...incoming.sessions[0],
+      id: 'foreign-record',
+      learning,
+      memo: '別環境の記録',
+      correct: 1,
+      incorrect: 3,
+    },
+  ]
+  return incoming
+}
+
+test('別IDの3階層を既存へ統合し、任意バックアップなしで履歴・統計・再取り込みを確認する', async ({
+  page,
+}) => {
+  const archived = structuredClone(seeded)
+  archived.items[2].archived = true
+  await page.evaluate(
+    (doc) => localStorage.setItem('pomolog.document', JSON.stringify(doc)),
+    archived,
+  )
+  await page.reload()
+  await open(page)
+  const raw = await rawData(page)
+  const incoming = foreignSource()
+  const downloads: string[] = []
+  page.on('download', (download) => downloads.push(download.suggestedFilename()))
+  await choose(page, incoming)
+  await expect(dialog(page).getByTestId('import-counts')).toHaveText(
+    '追加 1件（削除済み 0件） / 重複スキップ 1件 / 学習項目統合 9件 / 学習項目追加 0件 / 統合できない項目・競合 0件',
+  )
+  await expect(dialog(page)).toContainText(
+    'アーカイブ済み（親のアーカイブを含む）の項目へ3件を紐づけます',
+  )
+  await expect(confirm(page)).toBeEnabled()
+  await confirm(page).click()
+  await expect(dialog(page)).toHaveCount(0)
+  const result = await data(page)
+  expect(result.items).toEqual(archived.items)
+  expect(result.sessions[0]).toEqual(seeded.sessions[0])
+  expect(result.sessions[1]).toMatchObject({
+    id: 'foreign-record',
+    learning: {
+      ...incoming.sessions[1].learning,
+      subjectId: seeded.items[2].id,
+      middleId: 'existing-middle',
+      smallId: 'existing-small',
+    },
+  })
+  expect(downloads).toEqual([])
+  expect(await page.evaluate((key) => localStorage.getItem(key), importBackupKey(raw!))).toBe(raw)
+  await page.reload()
+  await page.getByRole('button', { name: /^学習履歴/ }).click()
+  await page.getByLabel('絞り込み教科').selectOption(seeded.items[2].id)
+  await page.getByLabel('絞り込み中項目').selectOption('existing-middle')
+  await page.getByLabel('絞り込み小項目').selectOption('existing-small')
+  await expect(page.locator('.history-entry')).toHaveCount(2)
+  await expect(page.locator('.history-entry').filter({ hasText: '別環境の記録' })).toContainText(
+    '昔の英語 / 旧文法 / 旧時制',
+  )
+  await page.getByRole('button', { name: '学習統計', exact: true }).click()
+  await page.getByRole('button', { name: '全期間', exact: true }).click()
+  await page.getByLabel('絞り込み教科').selectOption(seeded.items[2].id)
+  await page.getByLabel('絞り込み中項目').selectOption('existing-middle')
+  await page.getByLabel('絞り込み小項目').selectOption('existing-small')
+  await expect(page.getByTestId('stats-focus')).toContainText('40分')
+  await expect(page.getByTestId('stats-sets')).toContainText('2セッション')
+  await expect(page.getByTestId('stats-questions')).toContainText('60%')
+  const savedRaw = await rawData(page)
+  await open(page)
+  await choose(page, incoming)
+  await expect(dialog(page)).toContainText('追加できるデータはありません')
+  await expect(confirm(page)).toBeDisabled()
+  expect(await rawData(page)).toBe(savedRaw)
+})
+
+test('同名候補の曖昧さとテンプレートキー競合を通知し、一切保存しない', async ({ page }) => {
+  const current = structuredClone(seeded)
+  current.items[1].templateKeys = ['template-conflict']
+  current.items.push({ ...current.items[2], id: 'ambiguous-english' })
+  await page.evaluate(
+    (doc) => localStorage.setItem('pomolog.document', JSON.stringify(doc)),
+    current,
+  )
+  await page.reload()
+  const raw = await rawData(page)
+  await open(page)
+  await choose(page, foreignSource())
+  await expect(dialog(page).getByRole('alert')).toContainText('同名の統合候補が複数')
+  await expect(dialog(page).getByRole('alert')).toContainText('ambiguous-english')
+  await expect(dialog(page).getByTestId('import-counts')).toContainText(
+    '統合できない項目・競合 3件',
+  )
+  await expect(confirm(page)).toBeDisabled()
+  const conflicting = structuredClone(seeded)
+  conflicting.sessions[0].id = 'new-but-conflicting'
+  conflicting.items[2].templateKeys = ['template-conflict']
+  await choose(page, conflicting)
+  await expect(dialog(page).getByRole('alert')).toContainText('template-conflict')
+  await expect(dialog(page).getByTestId('import-counts')).toContainText(
+    '統合できない項目・競合 1件',
+  )
+  await expect(confirm(page)).toBeDisabled()
+  expect(await rawData(page)).toBe(raw)
+  expect(
+    await page.evaluate(() =>
+      Object.keys(localStorage).filter((key) => key.startsWith('pomolog.backup.import.')),
+    ),
+  ).toEqual([])
 })
 
 test('favicon・Apple・manifestが文字なしシンボルを参照する', async ({ page, request }, info) => {

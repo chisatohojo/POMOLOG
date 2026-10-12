@@ -24,6 +24,7 @@ export function ImportDialog({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [backupRevision, setBackupRevision] = useState<number | null>(null)
+  const [previewBase, setPreviewBase] = useState<AppDocument | null>(null)
   useEffect(() => {
     const element = dialog.current!
     element.showModal()
@@ -33,21 +34,23 @@ export function ImportDialog({
     }
   }, [])
   const preview = useMemo(() => {
-    if (!source) return null
+    if (!source || !previewBase) return null
     try {
-      return { plan: planImport(doc, source.document), error: '' }
+      return { plan: planImport(previewBase, source.document), error: '' }
     } catch (error) {
       return {
         plan: null,
         error: error instanceof Error ? error.message : '取り込みを確認できません。',
       }
     }
-  }, [doc, source])
+  }, [previewBase, source])
   const sessions = source?.document.sessions ?? []
   const dates = sessions.map((session) => session.startedAt)
   const plan = preview?.plan
   const canImport =
-    !disabled && Boolean(plan && (plan.added || plan.addedItems)) && backupRevision === doc.revision
+    !disabled &&
+    Boolean(plan?.document && plan.hasChanges) &&
+    previewBase?.revision === doc.revision
   return (
     <dialog
       ref={dialog}
@@ -69,6 +72,7 @@ export function ImportDialog({
             const file = event.target.files?.[0]
             const id = ++request.current
             setSource(null)
+            setPreviewBase(null)
             setError('')
             setBackupRevision(null)
             setFilename(file?.name ?? '')
@@ -83,7 +87,10 @@ export function ImportDialog({
             setLoading(true)
             try {
               const raw = await file.text()
-              if (id === request.current) setSource(parseImportFile(raw))
+              if (id === request.current) {
+                setSource(parseImportFile(raw))
+                setPreviewBase(doc)
+              }
             } catch (error) {
               if (id === request.current)
                 setError(
@@ -149,7 +156,8 @@ export function ImportDialog({
             <>
               <p data-testid="import-counts">
                 追加 {plan.added}件（削除済み {plan.addedDeleted}件） / 重複スキップ {plan.skipped}
-                件 / 学習項目追加 {plan.addedItems}件
+                件 / 学習項目統合 {plan.mergedItems}件 / 学習項目追加 {plan.addedItems}件 /
+                統合できない項目・競合 {plan.conflicts.length}件
               </p>
               {plan.changedDuplicates > 0 && (
                 <p className="import-warning">
@@ -157,18 +165,37 @@ export function ImportDialog({
                   件あります。更新日時にかかわらず現在の内容を保持し、上書きしません。
                 </p>
               )}
-              {plan.sameNames > 0 && (
+              {plan.archivedMatches.length > 0 && (
                 <p className="import-warning">
-                  異なるIDの同名項目が{plan.sameNames}件あります。別項目として追加します。
+                  アーカイブ済み（親のアーカイブを含む）の項目へ{plan.archivedMatches.length}
+                  件を紐づけます。状態は維持します：
+                  {plan.archivedMatches.map((item) => item.name).join('、')}
                 </p>
               )}
-              {plan.added === 0 && plan.addedItems === 0 && (
+              {plan.updatedItems > 0 && (
+                <p className="history-note">
+                  テンプレート情報を引き継ぐ既存項目：{plan.updatedItems}件
+                </p>
+              )}
+              {plan.conflicts.length > 0 && (
+                <div className="error" role="alert">
+                  <p>統合先を確定できないため、全件の取り込みを中止します。</p>
+                  <ul>
+                    {plan.conflicts.map((item) => (
+                      <li key={item.id}>
+                        「{item.name}」（{item.id}）：{item.reasons.join(' ')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {!plan.hasChanges && !plan.conflicts.length && (
                 <p role="status">追加できるデータはありません。</p>
               )}
             </>
           )}
           <p className="history-note">
-            削除状態と記録当時の名称を保持します。同じ項目IDは現在のマスターを使用します。ファイル内の進行中セット・選択状態は取り込まず、現在のタイマーと選択を維持します。
+            学習項目は同じIDを優先し、異なるIDでも同じ階層・統合後の親・正規化した名称が一致すれば統合します。現在の名称・アーカイブ状態・順序と、記録当時の名称・削除状態を保持します。ファイル内の進行中セット・選択状態は取り込まず、現在のタイマーと選択を維持します。
           </p>
           {source.document.timer && (
             <p className="import-warning">
@@ -182,11 +209,26 @@ export function ImportDialog({
           {error || preview?.error}
         </p>
       )}
+      {previewBase && previewBase.revision !== doc.revision && (
+        <div className="import-warning" role="alert">
+          <p>プレビュー後に現在データが更新されました。最新データで再確認してください。</p>
+          <button
+            className="secondary"
+            disabled={disabled}
+            onClick={() => {
+              setPreviewBase(doc)
+              setError('')
+            }}
+          >
+            最新データで再確認
+          </button>
+        </div>
+      )}
       {plan && (
         <div className="import-backup">
-          <h3>現在データのバックアップ</h3>
+          <h3>現在データのバックアップ（任意）</h3>
           <p className="history-note">
-            先にJSONを書き出し、端末に保存されたことを確認してください。取り込み時にはブラウザ内にも自動退避します。
+            必要に応じてJSONを書き出せます。手動の書き出しを省略しても、取り込み直前のデータはブラウザ内に必ず自動退避します。外部に保管するとブラウザのデータ消去にも備えられます。
           </p>
           <button
             className="secondary"
@@ -209,12 +251,12 @@ export function ImportDialog({
           </button>
           {backupRevision === doc.revision && (
             <p role="status">
-              バックアップの書き出しを要求しました。保存先を確認してから取り込んでください。
+              バックアップの書き出しを要求しました。端末の保存先を確認してください。
             </p>
           )}
           {backupRevision !== null && backupRevision !== doc.revision && (
-            <p className="import-warning" role="alert">
-              プレビュー後に現在データが更新されました。内容を再確認し、バックアップをもう一度書き出してください。
+            <p className="history-note">
+              手動バックアップ後にデータが更新されています。必要ならもう一度書き出せます。
             </p>
           )}
         </div>
@@ -232,8 +274,8 @@ export function ImportDialog({
           className="primary"
           disabled={!canImport}
           onClick={() => {
-            if (!source || backupRevision === null) return
-            const message = importData(source.document, backupRevision)
+            if (!source || !previewBase) return
+            const message = importData(source.document, previewBase.revision)
             if (message) setError(message)
             else close()
           }}

@@ -151,9 +151,13 @@ export type SessionContent = Pick<
 export function transition(doc: AppDocument, action: Action, now: number): AppDocument {
   if (action.type === 'import-data') {
     if (doc.revision !== action.expectedRevision)
-      throw new Error('プレビュー後にデータが更新されました。再確認・再バックアップしてください。')
+      throw new Error('プレビュー後にデータが更新されました。最新データで再確認してください。')
     const plan = planImport(doc, documentSchema.parse(action.document))
-    if (plan.added === 0 && plan.addedItems === 0) return doc
+    if (!plan.document)
+      throw new Error(
+        `学習項目を統合できません。${plan.conflicts.map((item) => `「${item.name}」（${item.id}）: ${item.reasons.join(' ')}`).join(' ')}`,
+      )
+    if (!plan.hasChanges) return doc
     return documentSchema.parse(plan.document)
   }
   if (
