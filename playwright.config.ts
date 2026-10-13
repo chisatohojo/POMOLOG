@@ -24,6 +24,7 @@ export default defineConfig({
         'browser-recovery.spec.ts',
         'learning-items.spec.ts',
         'history-stats.spec.ts',
+        'import.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], channel: 'chrome', baseURL: 'http://127.0.0.1:5181' },
     },

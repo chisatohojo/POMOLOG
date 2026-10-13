@@ -56,7 +56,10 @@ export class AppStore {
     try {
       const next = transition(doc, action, this.clock())
       if (next === doc) return false
-      this.snapshot = { document: this.repository.save(next, doc.revision), error: null }
+      this.snapshot = {
+        document: this.repository.save(next, doc.revision, action.type === 'import-data'),
+        error: null,
+      }
       this.emit()
       return true
     } catch (error) {

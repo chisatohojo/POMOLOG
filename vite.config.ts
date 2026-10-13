@@ -19,12 +19,20 @@ export default defineConfig({
         display: 'standalone',
         background_color: '#f7f7f5',
         theme_color: '#e85c50',
-        icons: [192, 512].map((size) => ({
-          src: `/icons/icon-${size}.png`,
-          sizes: `${size}x${size}`,
-          type: 'image/png',
-          purpose: 'any',
-        })),
+        icons: [
+          ...[192, 512].map((size) => ({
+            src: `/icons/icon-${size}.png`,
+            sizes: `${size}x${size}`,
+            type: 'image/png',
+            purpose: 'any',
+          })),
+          {
+            src: '/icons/icon-maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,woff2}'],
